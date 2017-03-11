@@ -1,0 +1,14 @@
+{
+  "name": "node-salesforce-connection",
+  "version": "1.0.0",
+  "description": "A minimal library for connecting to Salesforce from Node.js",
+  "license": "MIT",
+  "main": "salesforce.js",
+  "repository": "jesperkristensen/node-salesforce-connection",
+  "scripts": {
+    "eslint": "eslint ."
+  },
+  "devDependencies": {
+    "eslint": "3.17.1"
+  }
+}
