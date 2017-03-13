@@ -1,92 +1,116 @@
 "use strict";
 let https = require("https");
+let urlEncoder = require("./urlencoder");
 let xmlParser = require("./xmlparser");
 let xmlBuilder = require("./xmlbuilder");
 
+// See README.md for documentation.
 class SalesforceConnection {
   constructor() {
     this.instanceHostname = null;
     this.sessionId = null;
   }
 
-  partnerLogin(options) {
-    this.instanceHostname = options.hostname;
+  soapLogin({hostname, apiVersion, username, password}) {
+    this.instanceHostname = hostname;
     this.sessionId = null;
-    return this.soap(
-      this.wsdl(options.apiVersion, "Partner"),
-      "login",
-      {
-        "username": options.username,
-        "password": options.password
-      }
-    )
+    let wsdl = this.wsdl(apiVersion, "Partner");
+    return this.soap(wsdl, "login", {username, password})
       .then(loginResult => {
-        let serverUrl = loginResult.serverUrl;
-        let sessionId = loginResult.sessionId;
+        let {serverUrl, sessionId} = loginResult;
         serverUrl = /https:\/\/(.*)\/services/.exec(serverUrl)[1];
-        if (!serverUrl) {
-          throw "Login error: no serverUrl";
-        }
-        if (!sessionId) {
-          throw "Login error: no sessionId";
+        if (!serverUrl || !sessionId) {
+          // This should hever happen
+          let err = new Error("Salesforce didn't return a serverUrl and sessionId");
+          err.detail = loginResult;
+          throw err;
         }
         this.instanceHostname = serverUrl;
         this.sessionId = sessionId;
+        return loginResult;
       });
   }
 
-  rest(url, options) {
-    options = options || {};
-    let httpsOptions = {
-      host: this.instanceHostname,
-      path: url,
-      method: options.method || "GET",
-      headers: {
-        "Accept": "application/json; charset=UTF-8"
-      }
-    };
-    if (options.bulk) {
-      httpsOptions.headers["X-SFDC-Session"] = this.sessionId;
+  oauthToken(hostname, tokenRequest) {
+    this.instanceHostname = hostname;
+    this.sessionId = null;
+    return this.rest("/services/oauth2/token", {method: "POST", body: tokenRequest, bodyType: "urlencoded"})
+      .then(token => {
+        let {instance_url, access_token} = token;
+        instance_url = instance_url.replace("https://", "");
+        if (!instance_url || !access_token) {
+          // This should hever happen
+          let err = new Error("Salesforce didn't return an instance_url and access_token");
+          err.detail = token;
+          throw err;
+        }
+        this.instanceHostname = instance_url;
+        this.sessionId = access_token;
+        return token;
+      });
+  }
+
+  rest(path, {method = "GET", api = "normal", body = undefined, bodyType = "json", headers: argHeaders = {}, responseType = "json"} = {}) {
+    let host = this.instanceHostname;
+    let headers = {};
+    if (responseType == "json") {
+      headers.Accept = "application/json; charset=UTF-8";
     } else {
-      httpsOptions.headers.Authorization = "OAuth " + this.sessionId;
+      headers.Accept = responseType;
     }
-    if (options.body) {
-      httpsOptions.headers["Content-Type"] = "application/json; charset=UTF-8";
+    if (api == "bulk") {
+      headers["X-SFDC-Session"] = this.sessionId;
+    } else {
+      headers.Authorization = "Bearer " + this.sessionId;
     }
-    let body = JSON.stringify(options.body);
-    return this._request(httpsOptions, body).then(res => {
-      let response = res.response;
-      let responseBody = res.responseBody;
+    if (body !== undefined) {
+      if (bodyType == "json") {
+        body = JSON.stringify(body);
+        bodyType = "application/json; charset=UTF-8";
+      } else if (bodyType == "urlencoded") {
+        body = urlEncoder(body);
+        bodyType = "application/x-www-form-urlencoded; charset=UTF-8";
+      }
+      headers["Content-Type"] = bodyType;
+    }
+    Object.assign(headers, argHeaders); // argHeaders take priority over headers
+    return this._request({host, path, method, headers}, body).then(({response, responseBody}) => {
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        if (options.rawResponseBody) {
+        if (responseType == "json") {
+          if (responseBody) {
+            return JSON.parse(responseBody);
+          }
+          return null;
+        } else {
           return responseBody;
         }
-        if (responseBody) {
-          return JSON.parse(responseBody);
-        }
-        return null;
       } else {
-        let text;
-        if (response.statusCode == 400 && responseBody) {
-          try {
-            text = JSON.parse(responseBody).map(err => err.errorCode + ": " + err.message).join("\n");
-          } catch (ex) {
-            // empty
+        let err = new Error();
+        err.name = "SalesforceRestError";
+        err.detail = null;
+        try {
+          if (responseType == "json") {
+            err.detail = JSON.parse(responseBody);
+            err.message = err.detail.map(err => err.errorCode + ": " + err.message).join("\n");
+          } else {
+            err.message = responseBody;
+            err.detail = responseBody;
           }
+        } catch (ex) {
+          // empty
         }
-        if (response.statusCode == 0) { // TODO does node work that way?
-          text = "Network error, offline or timeout";
+        if (!err.message) {
+          err.message = "HTTP error " + response.statusCode + " " + response.statusMessage + (responseBody ? "\n\n" + responseBody : "");
         }
-        if (!text) {
-          text = "HTTP error " + response.statusCode + " " + response.statusMessage + (responseBody ? "\n\n" + responseBody : "");
-        }
-        throw {sfConnError: text};
+        err.response = response;
+        err.responseBody = responseBody;
+        throw err;
       }
     });
   }
 
   wsdl(apiVersion, apiName) {
-    return {
+    let wsdl = {
       Enterprise: {
         servicePortAddress: "/services/Soap/c/" + apiVersion,
         targetNamespace: "urn:enterprise.soap.sforce.com"
@@ -107,10 +131,14 @@ class SalesforceConnection {
         servicePortAddress: "/services/Soap/T/" + apiVersion,
         targetNamespace: "urn:tooling.soap.sforce.com"
       }
-    }[apiName];
+    };
+    if (apiName) {
+      wsdl = wsdl[apiName];
+    }
+    return wsdl;
   }
 
-  soap(wsdl, method, args, headers) {
+  soap(wsdl, method, args, {headers} = {}) {
     let httpsOptions = {
       host: this.instanceHostname,
       path: wsdl.servicePortAddress,
@@ -132,14 +160,18 @@ class SalesforceConnection {
         "soapenv:Body": {[method]: args}
       }
     );
-    return this._request(httpsOptions, requestBody).then(res => {
-      let response = res.response;
-      let responseBody = res.responseBody;
+    return this._request(httpsOptions, requestBody).then(({response, responseBody}) => {
       let resBody = xmlParser(responseBody)["soapenv:Envelope"]["soapenv:Body"];
       if (response.statusCode == 200) {
         return resBody[method + "Response"].result;
       } else {
-        throw {sfConnError: resBody["soapenv:Fault"].faultstring};
+        let err = new Error();
+        err.name = "SalesforceSoapError";
+        err.message = resBody["soapenv:Fault"].faultstring;
+        err.detail = resBody["soapenv:Fault"];
+        err.response = response;
+        err.responseBody = responseBody;
+        throw err;
       }
     });
   }
@@ -155,7 +187,12 @@ class SalesforceConnection {
         response.on("error", reject);
       });
       req.on("error", ex => {
-        reject({networkError: ex});
+        let err = new Error();
+        err.name = "SalesforceNetworkError";
+        err.message = String(ex);
+        err.detail = ex;
+        err.request = req;
+        reject(err);
       });
       if (requestBody) {
         req.write(requestBody);
