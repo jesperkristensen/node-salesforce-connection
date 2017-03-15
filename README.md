@@ -128,7 +128,7 @@ Use for example the
 [Tooling](https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/) or
 [Reports and Dashboards](https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/) API.
 
-Example using [query](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_query.htm):
+Example using [query](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_query.htm):
 
 ```js
 let recentAccounts = await sfConn.rest("/services/data/v39.0/query/?q="
@@ -200,8 +200,10 @@ sfConn.rest(url, {method, api, body, bodyType, headers, responseType});
         <dd> The <code>body</code> parameter is interpreted as a JavaScript object that will be converted to JSON.
         <dt> <code>"urlencoded"</code>
         <dd> The <code>body</code> parameter is interpreted as a JavaScript object that will be converted into URL encoded form data.
-        <dt> A MIME type
-        <dd> The <code>body</code> parameter is interpreted as a string and used directly in the HTTP request.
+        <dt> <code>"raw"</code>
+        <dd>
+          The <code>body</code> parameter is interpreted as a string or Node.js Buffer and used directly in the HTTP request.
+          Remember to set the <code>Content-Type</code> header.
       </dl>
   <tr>
     <td> <code>headers</code>
@@ -219,18 +221,21 @@ sfConn.rest(url, {method, api, body, bodyType, headers, responseType});
       <dl>
         <dt> <code>"json"</code>
         <dd> The HTTP response body will be parsed as JSON.
-        <dt> A MIME type
+        <dt> <code>"raw"</code>
         <dd>
-          The HTTP response body will be returned as a string.
-          This can be useful when working with the Bulk API, which can sometimes return responses that are not valid JSON.
-          Setting this to <code>"application/json; charset=UTF-8"</code> allows you to fix the errors before parsing the JSON.
+          The HTTP response body will not be parsed,
+          and a <a href="#salesforce-response"><code>SalesforceResponse</code></a>
+          object will be returned,
+          containing the HTTP response headers, response status and binary response body.
+          This allows you to read binary data or work around bugs in the Salesforce API.
+          Remember to set the <code>Accept</code> header if applicable.
       </dl>
   <tr>
     <td> (return value)
     <td> <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise">promise</a>
     <td>
     <td>
-      <p> If the request succeeds, the promise will resolve with the HTTP response body parsed according to the <code>responseType</code> parameter.
+      <p> If the request succeeds, the promise will resolve with the HTTP response parsed according to the <code>responseType</code> parameter.
       <p> If the request fails, the promise will reject with one of these errors:
       <dl>
         <dt> <a href="#salesforceresterror"><code>SalesforceRestError</code></a>
@@ -241,6 +246,31 @@ sfConn.rest(url, {method, api, body, bodyType, headers, responseType});
 </table>
 
 Consult the Salesforce documentation for information about which REST API resources are available and how they work.
+
+A <a name="salesforce-response"></a>`SalesforceResponse` object has these properties:
+
+<table>
+  <tr>
+    <th> Property name
+    <th> Type
+    <th> Value
+  <tr>
+    <td> <code>headers</code>
+    <td> object
+    <td> The HTTP <a href="https://nodejs.org/dist/latest/docs/api/http.html#http_message_headers">response headers</a>.
+  <tr>
+    <td> <code>statusCode</code>
+    <td> number
+    <td> The 3-digit HTTP response status code. E.g. <code>404</code>.
+  <tr>
+    <td> <code>statusMessage</code>
+    <td> string
+    <td> The HTTP response status message (reason phrase). E.g. <code>OK</code> or <code>Internal Server Error</code>.
+  <tr>
+    <td> <code>body</code>
+    <td> Node.js Buffer
+    <td> The HTTP response body. Call <code>response.body.toString()</code> to get the response body as text.
+</table>
 
 ## SOAP
 
@@ -291,7 +321,13 @@ sfConn.wsdl(apiVersion, apiName);
     <td> <code>apiName</code>
     <td> string
     <td> (required)
-    <td> The Salesforce SOAP API you want to use. Supported values are <code>"Enterprise"</code>, <code>"Partner"</code>, <code>"Apex"</code>, <code>"Metadata"</code> and <code>"Tooling"</code>.
+    <td>
+      The Salesforce SOAP API you want to use. Supported values are
+      <a href="https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/"><code>"Enterprise"</code></a>,
+      <a href="https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/"><code>"Partner"</code></a>,
+      <code>"Apex"</code>,
+      <a href="https://developer.salesforce.com/docs/atlas.en-us.api_meta.meta/api_meta/"><code>"Metadata"</code></a> and
+      <a href="https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/"><code>"Tooling"</code></a>.
   <tr>
     <td> (return value)
     <td> object
@@ -437,12 +473,8 @@ Supported types of errors:
     <td> The HTTP response body parsed according to the <code>responseType</code> input parameter.
   <tr>
     <td> <code>response</code>
-    <td> <a href="https://nodejs.org/dist/latest/docs/api/http.html#http_class_http_incomingmessage"><code>http.IncomingMessage</code></a>
-    <td> The Node.js HTTP response object. Useful to read <code>response.statusCode</code> and <code>response.statusMessage</code>.
-  <tr>
-    <td> <code>responseBody</code>
-    <td> string
-    <td> The (not parsed) HTTP response body.
+    <td> <a href="#salesforce-response"><code>SalesforceResponse</code></a>
+    <td> An object containing the HTTP response headers, response status and binary response body.
 </table>
 
 ### `SalesforceSoapError`
@@ -465,12 +497,8 @@ Supported types of errors:
     <td> The <a href="https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/sforce_api_calls_concepts_core_data_objects.htm">SOAP fault message</a> returned by Salesforce.
   <tr>
     <td> <code>response</code>
-    <td> <a href="https://nodejs.org/dist/latest/docs/api/http.html#http_class_http_incomingmessage"><code>http.IncomingMessage</code></a>
-    <td> The Node.js HTTP response object.
-  <tr>
-    <td> <code>responseBody</code>
-    <td> string
-    <td> The (not parsed) HTTP response body.
+    <td> <a href="#salesforce-response"><code>SalesforceResponse</code></a>
+    <td> An object containing the HTTP response headers, response status and binary response body.
 </table>
 
 ### `SalesforceNetworkError`
@@ -491,10 +519,6 @@ Supported types of errors:
     <td> <code>detail</code>
     <td> ?
     <td> The error given by Node.js.
-  <tr>
-    <td> <code>request</code>
-    <td> <a href="https://nodejs.org/dist/latest-v7.x/docs/api/http.html#http_class_http_clientrequest"><code>http.ClientRequest</code></a>
-    <td> The Node.js HTTP request object.
 </table>
 
 ## History

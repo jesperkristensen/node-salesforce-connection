@@ -130,7 +130,7 @@ class Test {
   {
     console.log("TEST: rest, bodyType");
     let contact = '{"FirstName": "Jane", "LastName": "Smith", "Email": "jane.smith@nodetest.example.com"}';
-    let result = await sfConn.rest("/services/data/v39.0/sobjects/Contact", {method: "POST", body: contact, bodyType: "application/json"});
+    let result = await sfConn.rest("/services/data/v39.0/sobjects/Contact", {method: "POST", body: contact, bodyType: "raw", headers: {"Content-Type": "application/json"}});
     Test.assert(result.id);
     Test.assertEquals(true, result.success);
     Test.assertEquals([], result.errors);
@@ -138,9 +138,10 @@ class Test {
 
   {
     console.log("TEST: rest, responseType");
-    let result = await sfConn.rest("/services/data/v39.0/limits/", {responseType: "application/json"});
-    Test.assertEquals("string", typeof result);
-    result = JSON.parse(result);
+    let result = await sfConn.rest("/services/data/v39.0/limits/", {responseType: "raw", headers: {Accept: "application/json"}});
+    Test.assertEquals(200, result.statusCode);
+    Test.assertEquals("OK", result.statusMessage);
+    result = JSON.parse(result.body.toString());
     Test.assertEquals("object", typeof result.DailyApiRequests);
   }
 
@@ -163,7 +164,8 @@ class Test {
       Test.assertEquals("MALFORMED_QUERY: unexpected token: invalid", ex.message);
       Test.assertEquals([{message: "unexpected token: invalid", errorCode: "MALFORMED_QUERY"}], ex.detail);
       Test.assertEquals(400, ex.response.statusCode);
-      Test.assertEquals('[{"message":"unexpected token: invalid","errorCode":"MALFORMED_QUERY"}]', ex.responseBody);
+      Test.assertEquals("Bad Request", ex.response.statusMessage);
+      Test.assertEquals('[{"message":"unexpected token: invalid","errorCode":"MALFORMED_QUERY"}]', ex.response.body.toString());
     }
   }
 
@@ -184,7 +186,8 @@ class Test {
       Test.assertEquals("INVALID_TYPE: sObject type &apos;Unknown&apos; is not supported. If you are attempting to use a custom object, be sure to append the &apos;__c&apos; after the entity name. Please reference your WSDL or the describe call for the appropriate names.", ex.message);
       Test.assertEquals("INVALID_TYPE: sObject type &apos;Unknown&apos; is not supported. If you are attempting to use a custom object, be sure to append the &apos;__c&apos; after the entity name. Please reference your WSDL or the describe call for the appropriate names.", ex.detail.faultstring);
       Test.assertEquals(500, ex.response.statusCode);
-      Test.assert(ex.responseBody);
+      Test.assertEquals("Server Error", ex.response.statusMessage);
+      Test.assert(ex.response.body.length > 0);
     }
   }
 
@@ -206,7 +209,6 @@ class Test {
       Test.assertEquals("SalesforceNetworkError", ex.name);
       Test.assertEquals("Error: getaddrinfo ENOTFOUND invalid.salesforce.com invalid.salesforce.com:443", ex.message);
       Test.assertEquals({code: "ENOTFOUND", errno: "ENOTFOUND", syscall: "getaddrinfo", hostname: "invalid.salesforce.com", host: "invalid.salesforce.com", port: 443}, ex.detail);
-      Test.assert(ex.request);
     }
   }
 
@@ -262,6 +264,7 @@ class Test {
       Test.assertEquals("SalesforceRestError", ex.name);
       Test.assertEquals({error: "invalid_client_id", error_description: "client identifier invalid"}, ex.detail);
       Test.assertEquals(400, ex.response.statusCode);
+      Test.assertEquals("Bad Request", ex.response.statusMessage);
     }
   }
 

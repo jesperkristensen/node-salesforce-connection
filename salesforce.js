@@ -53,57 +53,72 @@ class SalesforceConnection {
   rest(path, {method = "GET", api = "normal", body = undefined, bodyType = "json", headers: argHeaders = {}, responseType = "json"} = {}) {
     let host = this.instanceHostname;
     let headers = {};
+
     if (responseType == "json") {
       headers.Accept = "application/json; charset=UTF-8";
+    } else if (responseType == "raw") {
+      // Do nothing
     } else {
-      headers.Accept = responseType;
+      throw new Error("Unknown responseType");
     }
+
     if (api == "bulk") {
       headers["X-SFDC-Session"] = this.sessionId;
-    } else {
+    } else if (api == "normal") {
       headers.Authorization = "Bearer " + this.sessionId;
+    } else {
+      throw new Error("Unknown api");
     }
+
     if (body !== undefined) {
       if (bodyType == "json") {
         body = JSON.stringify(body);
-        bodyType = "application/json; charset=UTF-8";
+        headers["Content-Type"] = "application/json; charset=UTF-8";
       } else if (bodyType == "urlencoded") {
         body = urlEncoder(body);
-        bodyType = "application/x-www-form-urlencoded; charset=UTF-8";
+        headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8";
+      } else if (bodyType == "raw") {
+        // Do nothing
+      } else {
+        throw new Error("Unknown bodyType");
       }
-      headers["Content-Type"] = bodyType;
     }
+
     Object.assign(headers, argHeaders); // argHeaders take priority over headers
-    return this._request({host, path, method, headers}, body).then(({response, responseBody}) => {
+
+    return this._request({host, path, method, headers}, body).then(response => {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (responseType == "json") {
-          if (responseBody) {
-            return JSON.parse(responseBody);
+          if (response.body.length > 0) {
+            return JSON.parse(response.body.toString());
           }
           return null;
         } else {
-          return responseBody;
+          return response;
         }
       } else {
         let err = new Error();
         err.name = "SalesforceRestError";
-        err.detail = null;
-        try {
-          if (responseType == "json") {
-            err.detail = JSON.parse(responseBody);
-            err.message = err.detail.map(err => err.errorCode + ": " + err.message).join("\n");
-          } else {
-            err.message = responseBody;
-            err.detail = responseBody;
+        if (responseType == "json") {
+          try {
+            err.detail = JSON.parse(response.body.toString());
+          } catch (ex) {
+            err.detail = null;
           }
-        } catch (ex) {
-          // empty
-        }
-        if (!err.message) {
-          err.message = "HTTP error " + response.statusCode + " " + response.statusMessage + (responseBody ? "\n\n" + responseBody : "");
+          try {
+            err.message = err.detail.map(err => err.errorCode + ": " + err.message).join("\n");
+          } catch (ex) {
+            if (response.body.length > 0) {
+              err.message = response.body.toString();
+            } else {
+              err.message = "HTTP error " + response.statusCode + " " + response.statusMessage;
+            }
+          }
+        } else {
+          err.detail = response;
+          err.message = "HTTP error " + response.statusCode + " " + response.statusMessage;
         }
         err.response = response;
-        err.responseBody = responseBody;
         throw err;
       }
     });
@@ -160,8 +175,8 @@ class SalesforceConnection {
         "soapenv:Body": {[method]: args}
       }
     );
-    return this._request(httpsOptions, requestBody).then(({response, responseBody}) => {
-      let resBody = xmlParser(responseBody)["soapenv:Envelope"]["soapenv:Body"];
+    return this._request(httpsOptions, requestBody).then(response => {
+      let resBody = xmlParser(response.body.toString())["soapenv:Envelope"]["soapenv:Body"];
       if (response.statusCode == 200) {
         return resBody[method + "Response"].result;
       } else {
@@ -170,7 +185,6 @@ class SalesforceConnection {
         err.message = resBody["soapenv:Fault"].faultstring;
         err.detail = resBody["soapenv:Fault"];
         err.response = response;
-        err.responseBody = responseBody;
         throw err;
       }
     });
@@ -179,10 +193,15 @@ class SalesforceConnection {
   _request(httpsOptions, requestBody) {
     return new Promise((resolve, reject) => {
       let req = https.request(httpsOptions, response => {
-        let responseBody = "";
-        response.on("data", chunk => responseBody += chunk);
+        let chunks = [];
+        response.on("data", chunk => chunks.push(chunk));
         response.on("end", () => {
-          resolve({response, responseBody});
+          resolve({
+            headers: response.headers,
+            statusCode: response.statusCode,
+            statusMessage: response.statusMessage,
+            body: Buffer.concat(chunks)
+          });
         });
         response.on("error", reject);
       });
@@ -191,7 +210,6 @@ class SalesforceConnection {
         err.name = "SalesforceNetworkError";
         err.message = String(ex);
         err.detail = ex;
-        err.request = req;
         reject(err);
       });
       if (requestBody) {
