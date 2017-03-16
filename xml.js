@@ -27,6 +27,7 @@
  * - Salesforce never puts an xsi:type attribute on simple types, only on sObjects.
  * - All complex types in Salesforce always have child elements, except sObjects.
  * - While sObjects are complex types but might not always have child elements, they always have either a xsi:type attribute (in the Enterprise WSDL) or a <type> child element (in the Partner WSDL).
+ * Returns: Same as XMLParser#parseTag()
  */
 function parse(xml) {
   let parser = new XMLParser();
@@ -36,8 +37,7 @@ function parse(xml) {
   if (procEnd >= 0) {
     parser.pos = procEnd + "?>".length;
   }
-  let {name, value} = parser.parseTag();
-  return {[name]: value};
+  return parser.parseTag();
 }
 
 /**
@@ -51,11 +51,13 @@ class XMLParser {
 
   // Precond: this.xml[this.pos] is the "<" character in an start tag
   // Postcond: this.xml[this.pos] is the character after the ">" character in the corresponding end tag
-  // Returns: An object with two properties:
-  // - name : string : The element's tag name
+  // Returns: An object with these properties:
+  // - name : string : The element's tag name.
+  // - attributes : string : An unparsed list of attributes.
   // - value : any : A JavaScript value representing the contents of the element.
   parseTag() {
     let name;
+    let attributes;
     let value = ""; // A string or an object, default is string
     {
       // Consume the start tag
@@ -66,49 +68,51 @@ class XMLParser {
       let startTag = this.xml.substring(this.pos, startEnd);
       this.pos = startEnd + ">".length;
 
+      let selfClosing = false;
+      if (startTag.endsWith("/")) {
+        selfClosing = true;
+        startTag = startTag.substring(0, startTag.length - "/".length);
+      }
+
       // Process the start tag
       let nameEnd = startTag.indexOf(" ");
       if (nameEnd >= 0) {
         // We have attributes
         name = startTag.substring(0, nameEnd);
+        attributes = startTag.substring(nameEnd);
 
         // Parse the xsi:nil attribute
-        if (startTag.includes(" xsi:nil=\"true\"", nameEnd)) {
-          if (startTag.endsWith("/")) {
-            // Self-closing tag
-          } else {
+        if (attributes.includes(" xsi:nil=\"true\"")) {
+          attributes = attributes.replace(" xsi:nil=\"true\"", "");
+          if (!selfClosing) {
             // Assuming no child elements, find and process the end tag
             let endStart = this.xml.indexOf("<", this.pos);
             this.assert(endStart >= this.pos);
             this.pos = endStart;
             this.parseEndTag(name);
           }
-          return {name, value: null};
+          return {name, attributes, value: null};
         }
 
         // Parse the xsi:type attribute
-        let typeStart = startTag.indexOf(" xsi:type=\"");
+        let typeStart = attributes.indexOf(" xsi:type=\"");
         if (typeStart >= 0) {
-          typeStart += " xsi:type=\"".length;
-          let typeEnd = startTag.indexOf("\"", typeStart);
-          value = {$type: startTag.substring(typeStart, typeEnd)};
-        }
-
-        if (startTag.endsWith("/")) {
-          // Self-closing tag
-          return {name, value};
+          let typeValueStart = typeStart + " xsi:type=\"".length;
+          let typeValueEnd = attributes.indexOf("\"", typeValueStart);
+          value = {$type: attributes.substring(typeValueStart, typeValueEnd)};
+          let typeEnd = typeValueEnd + "\"".length;
+          attributes = attributes.substring(0, typeStart) + attributes.substring(typeEnd);
         }
 
       } else {
         // We don't have any attributes
-        if (startTag.endsWith("/")) {
-          // Self-closing tag
-          name = startTag.substring(0, startTag.length - 1);
-          return {name, value};
-        } else {
-          name = startTag;
-        }
+        name = startTag;
       }
+
+      if (selfClosing) {
+        return {name, attributes, value};
+      }
+
     }
 
     // Consume and process child nodes + end tag
@@ -121,7 +125,7 @@ class XMLParser {
         if (typeof value == "string") {
           this.assert(value == "");
           let text = this.xml.substring(this.pos, nextStart);
-          value = text.replace("&gt;", ">").replace("&lt;", "<").replace("&amp;", "&");
+          value = text.replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
         } else {
           // Ignore text if the value is an object
         }
@@ -132,7 +136,7 @@ class XMLParser {
       if (this.xml[this.pos + 1] == "/") {
         // The tag is an end tag
         this.parseEndTag(name);
-        return {name, value};
+        return {name, attributes, value};
       } else {
         // The tag is a start tag for a child element
         if (typeof value == "string") {
@@ -198,8 +202,9 @@ function asArray(x) {
  *      The "$type" property is special because it does not create a child element, but instead puts an xsi:type attribute on the element.
  * - Any other type is used as the text contents of the element.
  */
-function stringify(name, attributes, value) {
-  return Array.from(xmlTagBuilder(name, attributes, value)).join("");
+function stringify({name, attributes, value}) {
+  return '<?xml version="1.0" encoding="UTF-8"?>'
+    + Array.from(xmlTagBuilder(name, attributes, value)).join("");
 }
 
 function* xmlTagBuilder(name, attributes, value) {
@@ -211,7 +216,8 @@ function* xmlTagBuilder(name, attributes, value) {
   }
 
   if (value === null) {
-    attributes += " xsi:nil=\"true\"";
+    yield "<" + name + attributes + " xsi:nil=\"true\"/>";
+    return;
   } else if (typeof value === "object" && "$type" in value) {
     attributes += " xsi:type=\"" + value.$type + "\"";
   }
@@ -227,7 +233,7 @@ function* xmlTagBuilder(name, attributes, value) {
       }
     }
   } else {
-    yield String(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    yield String(value).replace(/&/g, "&amp;").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   yield "</" + name + ">";

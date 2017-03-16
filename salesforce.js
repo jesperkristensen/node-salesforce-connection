@@ -166,16 +166,16 @@ class SalesforceConnection {
     if (this.sessionId) {
       sessionHeader = {SessionHeader: {sessionId: this.sessionId}};
     }
-    let requestBody = xml.stringify(
-      "soapenv:Envelope",
-      ' xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="' + wsdl.targetNamespace + '"',
-      {
+    let requestBody = xml.stringify({
+      name: "soapenv:Envelope",
+      attributes: ' xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="' + wsdl.targetNamespace + '"',
+      value: {
         "soapenv:Header": Object.assign({}, sessionHeader, headers),
         "soapenv:Body": {[method]: args}
       }
-    );
+    });
     return this._request(httpsOptions, requestBody).then(response => {
-      let resBody = xml.parse(response.body.toString())["soapenv:Envelope"]["soapenv:Body"];
+      let resBody = xml.parse(response.body.toString()).value["soapenv:Body"];
       if (response.statusCode == 200) {
         return resBody[method + "Response"].result;
       } else {

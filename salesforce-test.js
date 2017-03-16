@@ -183,8 +183,8 @@ class Test {
       throw new Error("expected an error");
     } catch (ex) {
       Test.assertEquals("SalesforceSoapError", ex.name);
-      Test.assertEquals("INVALID_TYPE: sObject type &apos;Unknown&apos; is not supported. If you are attempting to use a custom object, be sure to append the &apos;__c&apos; after the entity name. Please reference your WSDL or the describe call for the appropriate names.", ex.message);
-      Test.assertEquals("INVALID_TYPE: sObject type &apos;Unknown&apos; is not supported. If you are attempting to use a custom object, be sure to append the &apos;__c&apos; after the entity name. Please reference your WSDL or the describe call for the appropriate names.", ex.detail.faultstring);
+      Test.assertEquals("INVALID_TYPE: sObject type 'Unknown' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.", ex.message);
+      Test.assertEquals("INVALID_TYPE: sObject type 'Unknown' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.", ex.detail.faultstring);
       Test.assertEquals(500, ex.response.statusCode);
       Test.assertEquals("Server Error", ex.response.statusMessage);
       Test.assert(ex.response.body.length > 0);
