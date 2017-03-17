@@ -1,7 +1,7 @@
 "use strict";
 /**
  * A very simple XML parser designed to parse the subset of XML that Salesforce produces.
- * It can read Salesforce SOAP responses and Metadata XML files.
+ * It can read Salesforce SOAP responses and some (but not all) Metadata XML files.
  * It does not support many XML features such as namespaces, comments, attributes, doctypes and cdata.
  * It might not always detect syntax errors in the XML.
  * It supports the XSI attributes.
@@ -203,7 +203,7 @@ function asArray(x) {
 
 /**
  * Build an XML document to be consumed by Salesforce.
- * We can create Salesforce SOAP requests and Metadata XML files.
+ * We can create Salesforce SOAP requests and some (but not all) Metadata XML files.
  * @param name : string : The tag name of the root element.
  * @param attributes : string : An XML string with attributes for the root element, such as namespace declarations.
  * @param value : any : A JavaScript object representing the contents of the XML.
