@@ -33,11 +33,25 @@ function parse(xml) {
   let parser = new XMLParser();
   parser.xml = xml;
   parser.pos = 0;
-  let procEnd = parser.xml.indexOf("?>");
-  if (procEnd >= 0) {
-    parser.pos = procEnd + "?>".length;
+  // Process XML Declaration, if there is any
+  {
+    let procEnd = parser.xml.indexOf("?>");
+    if (procEnd >= 0) {
+      parser.pos = procEnd + "?>".length;
+    }
   }
-  return parser.parseTag();
+  // Process whitespace, if there is any
+  {
+    let nextStart = parser.xml.indexOf("<", parser.pos);
+    parser.assert(nextStart >= parser.pos);
+    parser.pos = nextStart;
+  }
+  let parsed = parser.parseTag();
+  if (global.SALESFORCE_XML_VERIFY) {
+    let out = stringify(parsed);
+    parser.assertEq(xml, out);
+  }
+  return parsed;
 }
 
 /**

@@ -1,32 +1,22 @@
 "use strict";
-let SalesforceConnection = require("../node-salesforce-connection/salesforce");
+let wrappedAssert = require("assert");
+let SalesforceConnection = require("./salesforce");
 
-class Test {
-
-  static assertEquals(expected, actual, message) {
-    let strExpected = JSON.stringify(expected);
-    let strActual = JSON.stringify(actual);
-    if (strExpected !== strActual) {
+let assert = {};
+for (let [name, value] of Object.entries(wrappedAssert)) {
+  assert[name] = (...args) => {
+    try {
+      return value.apply(wrappedAssert, args);
+    } catch (ex) {
       process.exitCode = 1;
-      let msg = new Error("assertEquals failed: Expected " + strExpected + " but found " + strActual);
-      console.error(message);
-      console.error(msg);
-      throw msg;
+      throw ex;
     }
-  }
-
-  static assert(truth, msg) {
-    if (!truth) {
-      process.exitCode = 1;
-      console.error("assert failed", msg);
-      let err = new Error("assert failed: " + msg);
-      throw err;
-    }
-  }
-
+  };
 }
 
 (async () => {
+
+  global.SALESFORCE_XML_VERIFY = true;
 
   let sfConn = new SalesforceConnection();
 
@@ -53,13 +43,13 @@ class Test {
       {externalIdFieldName: "Email", sObjects: contacts});
 
     res = sfConn.asArray(res);
-    Test.assertEquals(2, res.length);
-    Test.assert(res[0].created == "true" || res[0].created == "false", res[0].created);
-    Test.assert(res[0].id, res[0].id);
-    Test.assertEquals("true", res[0].success);
-    Test.assert(res[1].created == "true" || res[1].created == "false", res[1].created);
-    Test.assert(res[1].id, res[1].id);
-    Test.assertEquals("true", res[1].success);
+    assert.strictEqual(res.length, 2);
+    assert.ok(res[0].created == "true" || res[0].created == "false", res[0].created);
+    assert.ok(res[0].id, res[0].id);
+    assert.strictEqual(res[0].success, "true");
+    assert.ok(res[1].created == "true" || res[1].created == "false", res[1].created);
+    assert.ok(res[1].id, res[1].id);
+    assert.strictEqual(res[1].success, "true");
   }
 
   {
@@ -76,13 +66,13 @@ class Test {
       {externalIdFieldName: "Email", sObjects: contacts}, {headers});
 
     res = sfConn.asArray(res);
-    Test.assertEquals(2, res.length);
-    Test.assertEquals("false", res[0].created);
-    Test.assert(res[0].id, res[0].id);
-    Test.assertEquals("true", res[0].success);
-    Test.assertEquals("false", res[1].created);
-    Test.assert(res[1].id, res[1].id);
-    Test.assertEquals("true", res[1].success);
+    assert.strictEqual(res.length, 2);
+    assert.strictEqual(res[0].created, "false");
+    assert.ok(res[0].id, res[0].id);
+    assert.strictEqual(res[0].success, "true");
+    assert.strictEqual(res[1].created, "false");
+    assert.ok(res[1].id, res[1].id);
+    assert.strictEqual(res[1].success, "true");
   }
 
   let contacts;
@@ -91,17 +81,17 @@ class Test {
     contacts = await sfConn.rest("/services/data/v39.0/query/?q="
       + encodeURIComponent("select Id, Name from Contact where Email like '%nodetest.example.com' order by Name"));
 
-    Test.assertEquals(2, contacts.records.length);
-    Test.assertEquals("Jane Smith", contacts.records[0].Name);
-    Test.assertEquals("John Smith", contacts.records[1].Name);
-    Test.assertEquals(true, contacts.done);
+    assert.strictEqual(contacts.records.length, 2);
+    assert.strictEqual(contacts.records[0].Name, "Jane Smith");
+    assert.strictEqual(contacts.records[1].Name, "John Smith");
+    assert.strictEqual(contacts.done, true);
   }
 
   {
     console.log("TEST: rest, method");
     for (let contact of contacts.records) {
       let res = await sfConn.rest(contact.attributes.url, {method: "DELETE"});
-      Test.assertEquals(null, res);
+      assert.strictEqual(res, null);
     }
   }
 
@@ -114,35 +104,35 @@ class Test {
       contentType: "JSON",
     };
     let job = await sfConn.rest("/services/async/39.0/job", {method: "POST", body, api: "bulk"});
-    Test.assertEquals(0, job.numberBatchesTotal);
-    Test.assertEquals("Open", job.state);
+    assert.strictEqual(job.numberBatchesTotal, 0);
+    assert.strictEqual(job.state, "Open");
   }
 
   {
     console.log("TEST: rest, body");
     let contact = {FirstName: "John", LastName: "Smith", Email: "john.smith@nodetest.example.com"};
     let result = await sfConn.rest("/services/data/v39.0/sobjects/Contact", {method: "POST", body: contact});
-    Test.assert(result.id);
-    Test.assertEquals(true, result.success);
-    Test.assertEquals([], result.errors);
+    assert.ok(result.id);
+    assert.strictEqual(result.success, true);
+    assert.deepStrictEqual(result.errors, []);
   }
 
   {
     console.log("TEST: rest, bodyType");
     let contact = '{"FirstName": "Jane", "LastName": "Smith", "Email": "jane.smith@nodetest.example.com"}';
     let result = await sfConn.rest("/services/data/v39.0/sobjects/Contact", {method: "POST", body: contact, bodyType: "raw", headers: {"Content-Type": "application/json"}});
-    Test.assert(result.id);
-    Test.assertEquals(true, result.success);
-    Test.assertEquals([], result.errors);
+    assert.ok(result.id);
+    assert.strictEqual(result.success, true);
+    assert.deepStrictEqual(result.errors, []);
   }
 
   {
     console.log("TEST: rest, responseType");
     let result = await sfConn.rest("/services/data/v39.0/limits/", {responseType: "raw", headers: {Accept: "application/json"}});
-    Test.assertEquals(200, result.statusCode);
-    Test.assertEquals("OK", result.statusMessage);
+    assert.strictEqual(result.statusCode, 200);
+    assert.strictEqual(result.statusMessage, "OK");
     result = JSON.parse(result.body.toString());
-    Test.assertEquals("object", typeof result.DailyApiRequests);
+    assert.strictEqual(typeof result.DailyApiRequests, "object");
   }
 
   {
@@ -151,7 +141,7 @@ class Test {
       + encodeURIComponent("select Id from Contact where Email like '%nodetest.example.com'"),
       {headers: {"Sforce-Query-Options": "batchSize=1000"}});
 
-    Test.assertEquals(2, contacts.records.length);
+    assert.strictEqual(contacts.records.length, 2);
   }
 
   {
@@ -160,12 +150,12 @@ class Test {
       await sfConn.rest("/services/data/v39.0/query/?q=invalid");
       throw new Error("expected an error");
     } catch (ex) {
-      Test.assertEquals("SalesforceRestError", ex.name);
-      Test.assertEquals("MALFORMED_QUERY: unexpected token: invalid", ex.message);
-      Test.assertEquals([{message: "unexpected token: invalid", errorCode: "MALFORMED_QUERY"}], ex.detail);
-      Test.assertEquals(400, ex.response.statusCode);
-      Test.assertEquals("Bad Request", ex.response.statusMessage);
-      Test.assertEquals('[{"message":"unexpected token: invalid","errorCode":"MALFORMED_QUERY"}]', ex.response.body.toString());
+      assert.strictEqual(ex.name, "SalesforceRestError");
+      assert.strictEqual(ex.message, "MALFORMED_QUERY: unexpected token: invalid");
+      assert.deepStrictEqual(ex.detail, [{message: "unexpected token: invalid", errorCode: "MALFORMED_QUERY"}]);
+      assert.strictEqual(ex.response.statusCode, 400);
+      assert.strictEqual(ex.response.statusMessage, "Bad Request");
+      assert.strictEqual(ex.response.body.toString(), '[{"message":"unexpected token: invalid","errorCode":"MALFORMED_QUERY"}]');
     }
   }
 
@@ -182,21 +172,21 @@ class Test {
         {sObjects: invalid});
       throw new Error("expected an error");
     } catch (ex) {
-      Test.assertEquals("SalesforceSoapError", ex.name);
-      Test.assertEquals("INVALID_TYPE: sObject type 'Unknown' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.", ex.message);
-      Test.assertEquals("INVALID_TYPE: sObject type 'Unknown' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.", ex.detail.faultstring);
-      Test.assertEquals(500, ex.response.statusCode);
-      Test.assertEquals("Server Error", ex.response.statusMessage);
-      Test.assert(ex.response.body.length > 0);
+      assert.strictEqual(ex.name, "SalesforceSoapError");
+      assert.strictEqual(ex.message, "INVALID_TYPE: sObject type 'Unknown' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.");
+      assert.strictEqual(ex.detail.faultstring, "INVALID_TYPE: sObject type 'Unknown' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.");
+      assert.strictEqual(ex.response.statusCode, 500);
+      assert.strictEqual(ex.response.statusMessage, "Server Error");
+      assert.ok(ex.response.body.length > 0);
     }
   }
 
   {
     console.log("TEST: asArray");
     let o = {a: [1, 2], b: 3};
-    Test.assertEquals([1, 2], sfConn.asArray(o.a));
-    Test.assertEquals([3], sfConn.asArray(o.b));
-    Test.assertEquals([], sfConn.asArray(o.c));
+    assert.deepStrictEqual(sfConn.asArray(o.a), [1, 2]);
+    assert.deepStrictEqual(sfConn.asArray(o.b), [3]);
+    assert.deepStrictEqual(sfConn.asArray(o.c), []);
   }
 
   {
@@ -206,9 +196,9 @@ class Test {
       await sfConn.rest("/services/data/v39.0/query/?q=invalid");
       throw new Error("expected an error");
     } catch (ex) {
-      Test.assertEquals("SalesforceNetworkError", ex.name);
-      Test.assertEquals("Error: getaddrinfo ENOTFOUND invalid.salesforce.com invalid.salesforce.com:443", ex.message);
-      Test.assertEquals({code: "ENOTFOUND", errno: "ENOTFOUND", syscall: "getaddrinfo", hostname: "invalid.salesforce.com", host: "invalid.salesforce.com", port: 443}, ex.detail);
+      assert.strictEqual(ex.name, "SalesforceNetworkError");
+      assert.strictEqual(ex.message, "Error: getaddrinfo ENOTFOUND invalid.salesforce.com invalid.salesforce.com:443");
+      assert.deepStrictEqual(ex.detail, Object.assign(new Error(), {code: "ENOTFOUND", errno: "ENOTFOUND", syscall: "getaddrinfo", hostname: "invalid.salesforce.com", host: "invalid.salesforce.com", port: 443}));
     }
   }
 
@@ -223,7 +213,7 @@ class Test {
       });
       throw new Error("expected an error");
     } catch (ex) {
-      Test.assertEquals("SalesforceSoapError", ex.name);
+      assert.strictEqual(ex.name, "SalesforceSoapError");
     }
   }
 
@@ -238,7 +228,7 @@ class Test {
     };
     let hostname = "login.salesforce.com";
     let token = await sfConn.oauthToken(hostname, tokenRequest);
-    Test.assertEquals("Bearer", token.token_type);
+    assert.strictEqual(token.token_type, "Bearer");
   }
 
   {
@@ -246,7 +236,7 @@ class Test {
     let contacts = await sfConn.rest("/services/data/v39.0/query/?q="
       + encodeURIComponent("select Id, Name from Contact where Email like '%nodetest.example.com' order by Name"));
 
-    Test.assertEquals(2, contacts.records.length);
+    assert.strictEqual(contacts.records.length, 2);
   }
 
   {
@@ -261,10 +251,10 @@ class Test {
     try {
       await sfConn.oauthToken("login.salesforce.com", tokenRequest);
     } catch (ex) {
-      Test.assertEquals("SalesforceRestError", ex.name);
-      Test.assertEquals({error: "invalid_client_id", error_description: "client identifier invalid"}, ex.detail);
-      Test.assertEquals(400, ex.response.statusCode);
-      Test.assertEquals("Bad Request", ex.response.statusMessage);
+      assert.strictEqual(ex.name, "SalesforceRestError");
+      assert.deepStrictEqual(ex.detail, {error: "invalid_client_id", error_description: "client identifier invalid"});
+      assert.strictEqual(ex.response.statusCode, 400);
+      assert.strictEqual(ex.response.statusMessage, "Bad Request");
     }
   }
 

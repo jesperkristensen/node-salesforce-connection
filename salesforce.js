@@ -1,7 +1,7 @@
 "use strict";
 let https = require("https");
 let urlEncoder = require("./urlencoder");
-let xml = require("./xml");
+let XML = require("./xml");
 
 // See README.md for documentation.
 class SalesforceConnection {
@@ -166,7 +166,7 @@ class SalesforceConnection {
     if (this.sessionId) {
       sessionHeader = {SessionHeader: {sessionId: this.sessionId}};
     }
-    let requestBody = xml.stringify({
+    let requestBody = XML.stringify({
       name: "soapenv:Envelope",
       attributes: ' xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="' + wsdl.targetNamespace + '"',
       value: {
@@ -175,7 +175,7 @@ class SalesforceConnection {
       }
     });
     return this._request(httpsOptions, requestBody).then(response => {
-      let resBody = xml.parse(response.body.toString()).value["soapenv:Body"];
+      let resBody = XML.parse(response.body.toString()).value["soapenv:Body"];
       if (response.statusCode == 200) {
         return resBody[method + "Response"].result;
       } else {
@@ -220,6 +220,6 @@ class SalesforceConnection {
 
 }
 
-SalesforceConnection.prototype.asArray = xml.asArray;
+SalesforceConnection.prototype.asArray = XML.asArray;
 
 module.exports = SalesforceConnection;
