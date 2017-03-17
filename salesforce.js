@@ -1,6 +1,6 @@
 "use strict";
 let https = require("https");
-let urlEncoder = require("./urlencoder");
+let querystring = require("querystring");
 let XML = require("./xml");
 
 // See README.md for documentation.
@@ -74,7 +74,7 @@ class SalesforceConnection {
         body = JSON.stringify(body);
         headers["Content-Type"] = "application/json; charset=UTF-8";
       } else if (bodyType == "urlencoded") {
-        body = urlEncoder(body);
+        body = querystring.stringify(body);
         headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8";
       } else if (bodyType == "raw") {
         // Do nothing
