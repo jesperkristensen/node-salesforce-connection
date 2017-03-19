@@ -198,13 +198,7 @@ class SalesforceConnection {
         });
         response.on("error", reject);
       });
-      req.on("error", ex => {
-        let err = new Error();
-        err.name = "SalesforceNetworkError";
-        err.message = String(ex);
-        err.detail = ex;
-        reject(err);
-      });
+      req.on("error", reject);
       if (requestBody) {
         req.write(requestBody);
       }

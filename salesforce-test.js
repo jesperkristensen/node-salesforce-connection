@@ -196,9 +196,9 @@ for (let [name, value] of Object.entries(wrappedAssert)) {
       await sfConn.rest("/services/data/v39.0/query/?q=invalid");
       throw new Error("expected an error");
     } catch (ex) {
-      assert.strictEqual(ex.name, "SalesforceNetworkError");
-      assert.strictEqual(ex.message, "Error: getaddrinfo ENOTFOUND invalid.salesforce.com invalid.salesforce.com:443");
-      assert.deepStrictEqual(ex.detail, Object.assign(new Error(), {code: "ENOTFOUND", errno: "ENOTFOUND", syscall: "getaddrinfo", hostname: "invalid.salesforce.com", host: "invalid.salesforce.com", port: 443}));
+      assert.strictEqual(ex.name, "Error");
+      assert.strictEqual(ex.message, "getaddrinfo ENOTFOUND invalid.salesforce.com invalid.salesforce.com:443");
+      assert.deepStrictEqual(ex, Object.assign(new Error(), {code: "ENOTFOUND", errno: "ENOTFOUND", syscall: "getaddrinfo", hostname: "invalid.salesforce.com", host: "invalid.salesforce.com", port: 443}));
     }
   }
 

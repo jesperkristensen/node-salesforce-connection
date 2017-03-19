@@ -75,9 +75,9 @@ await sfConn.soapLogin({
 
 The function calls the SOAP [login](https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/sforce_api_calls_login.htm) method.
 
-The function returns a [promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise).
-If logging in succeeds, the promise will resolve, and `sfConn` will be ready to use.
-If logging in fails, the promise will reject with a [`SalesforceSoapError`](#salesforcesoaperror).
+The function returns a [promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)
+that behaves identically to the promise [returned from the `soap` function](#soap-return).
+When the promise resolves successfully, `sfConn` will be ready to use.
 
 ### Logging in using OAuth
 
@@ -98,9 +98,9 @@ await sfConn.oauthToken(hostname, tokenRequest);
 
 The function makes a `POST` request to `/services/oauth2/token`.
 
-The function returns a [promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise).
-If logging in succeeds, the promise will resolve with the token response, and `sfConn` will be ready to use.
-If logging in fails, the promise will reject with a [`SalesforceRestError`](#salesforceresterror).
+The function returns a [promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)
+that behaves identically to the promise [returned from the `rest` function](#rest-return).
+When the promise resolves successfully, `sfConn` will be ready to use.
 
 Use the `oauthToken` function with the
 [Web Server](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_understanding_web_server_oauth_flow.htm),
@@ -230,22 +230,39 @@ sfConn.rest(url, {method, api, body, bodyType, headers, responseType});
           This allows you to read binary data or work around bugs in the Salesforce API.
           Remember to set the <code>Accept</code> header if applicable.
       </dl>
-  <tr>
-    <td> (return value)
-    <td> <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise">promise</a>
-    <td>
-    <td>
-      <p> If the request succeeds, the promise will resolve with the HTTP response parsed according to the <code>responseType</code> parameter.
-      <p> If the request fails, the promise will reject with one of these errors:
-      <dl>
-        <dt> <a href="#salesforceresterror"><code>SalesforceRestError</code></a>
-        <dd> If Salesforce returned an error response, such as HTTP 400.
-        <dt> <a href="#salesforcenetworkerror"><code>SalesforceNetworkError</code></a>
-        <dd> If Node.js could not connect to Salesforce.
-      </dl>
 </table>
 
-Consult the Salesforce documentation for information about which REST API resources are available and how they work.
+<a name="rest-return"></a>
+The `rest` function returns a [promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise).
+
+If the request succeeds, the promise will resolve with the HTTP response parsed according to the `responseType` parameter.
+
+If the request fails because Salesforce returned an error response (such as HTTP 400), the promise will reject with an `Error` with these properties:
+
+<table>
+  <tr>
+    <th> Property name
+    <th> Type
+    <th> Value
+  <tr>
+    <td> <code>name</code>
+    <td> string
+    <td> <code>"SalesforceRestError"</code>
+  <tr>
+    <td> <code>message</code>
+    <td> string
+    <td> A descriptive error message. A text version of the <code>detail</code> property, or the HTTP status message if we did not receive a HTTP response body.
+  <tr>
+    <td> <code>detail</code>
+    <td> Depends on <code>responseType</code>
+    <td> The HTTP response body parsed according to the <code>responseType</code> input parameter.
+  <tr>
+    <td> <code>response</code>
+    <td> <a href="#salesforce-response"><code>SalesforceResponse</code></a>
+    <td> An object containing the HTTP response headers, response status and binary response body.
+</table>
+
+If the request fails because Node.js could not connect to Salesforce, the promise will reject with a <a href="https://nodejs.org/api/errors.html#errors_system_errors">Node.js System Error</a>.
 
 A <a name="salesforce-response"></a>`SalesforceResponse` object has these properties:
 
@@ -271,6 +288,7 @@ A <a name="salesforce-response"></a>`SalesforceResponse` object has these proper
     <td> Node.js Buffer
     <td> The HTTP response body. Call <code>response.body.toString()</code> to get the response body as text.
 </table>
+
 
 ## SOAP
 
@@ -328,12 +346,9 @@ sfConn.wsdl(apiVersion, apiName);
       <code>"Apex"</code>,
       <a href="https://developer.salesforce.com/docs/atlas.en-us.api_meta.meta/api_meta/"><code>"Metadata"</code></a> and
       <a href="https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/"><code>"Tooling"</code></a>.
-  <tr>
-    <td> (return value)
-    <td> object
-    <td>
-    <td> The function returns an object containing information from the WSDL that is needed to make SOAP requests.
 </table>
+
+The `wsdl` function returns an object containing information from the WSDL that is needed to make SOAP requests.
 
 Alternatively, you can call the `wsdl` function with only one parameter to get an object with all the WSDL's we know:
 ```js
@@ -385,24 +400,16 @@ sfConn.soap(wsdl, method, args, {headers});
       Pass an object where each property corresponds to a SOAP header by name.
       The Salesforce Session ID is automatically added here, so you don't have to.
       Example: <code>{AllOrNoneHeader: {allOrNone: false}, EmailHeader: {triggerAutoResponseEmail: true}}</code>.
-  <tr>
-    <td> (return value)
-    <td> <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise">promise</a>
-    <td>
-    <td>
-      <p> If the request succeeds, the promise will resolve with the SOAP method's return value.
-      <p> If the request fails, the promise will reject with one of these errors:
-      <dl>
-        <dt> <a href="#salesforcesoaperror"><code>SalesforceSoapError</code></a>
-        <dd> If Salesforce returned a <a href="https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/sforce_api_calls_concepts_core_data_objects.htm">SOAP fault</a>.
-        <dt> <a href="#salesforcenetworkerror"><code>SalesforceNetworkError</code></a>
-        <dd> If Node.js could not connect to Salesforce.
-      </dl>
 </table>
 
 sObjects are a bit special in the SOAP API. You always need to specify the type of an sObject.
 In the Partner WSDL, use the `type` property (Example: `{type: "Account", Name: "Example"}`).
 In the Enterprise WSDL and others, use the `$type` property (Example: `{$type: "Account", Name: "Example"}`).
+
+<a name="soap-return"></a>
+The `soap` function returns a [promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise).
+
+If the request succeeds, the promise will resolve with the SOAP method's return value.
 
 When you get the return value from a SOAP API call, you won't get the precise type of the returned data, since that information is only available in the WSDL. You have to convert the type yourself using these rules:
 * If you expect a string, you will get a string.
@@ -412,72 +419,9 @@ When you get the return value from a SOAP API call, you won't get the precise ty
 * If you expect an object, you will get an object.
 * If you expect an array, you will get different things if your array has zero, one or more elements. Convert it to an array using the `asArray` utility function, for example `let myArray = sfConn.asArray(mvValue);`.
 
-## Error handling
+If the request fails because Salesforce returned a [SOAP fault](https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/sforce_api_calls_concepts_core_data_objects.htm),
+the promise will reject with an `Error` with these properties:
 
-The `rest` and `soap` functions return <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise">promises</a> you can use in error handling like any other promise.
-
-Example:
-
-```js
-try {
-  let result = await sfConn.rest("/services/data/v39.0/query/?q="
-    + encodeURIComponent("select Id from UnknownObject"));
-  console.log(result);
-} catch (ex) {
-  if (ex.name == "SalesforceRestError") {
-    console.log("Salesforce returned an error: " + ex.message);
-  } else if (ex.name == "SalesforceNetworkError") {
-    console.log("Could not make request. Are you offline?");
-  } else {
-    throw ex; // Unknown type of error
-  }
-}
-```
-
-Same example with an older JavaScript syntax:
-```js
-sfConn.rest("/services/data/v39.0/query/?q="
-  + encodeURIComponent("select Id from UnknownObject"))
-.then(function(result) {
-  console.log(result);
-}, function(ex) {
-  if (ex.name == "SalesforceRestError") {
-    console.log("Salesforce returned an error: " + ex.message);
-  } else if (ex.name == "SalesforceNetworkError") {
-    console.log("Could not make request. Are you offline?");
-  } else {
-    throw ex; // Unknown type of error
-  }
-});
-```
-
-Supported types of errors:
-
-### `SalesforceRestError`
-<table>
-  <tr>
-    <th> Property name
-    <th> Type
-    <th> Value
-  <tr>
-    <td> <code>name</code>
-    <td> string
-    <td> <code>"SalesforceRestError"</code>
-  <tr>
-    <td> <code>message</code>
-    <td> string
-    <td> A descriptive error message. A text version of the <code>detail</code> property, or the HTTP status message if we did not receive a HTTP response body.
-  <tr>
-    <td> <code>detail</code>
-    <td> Depends on <code>responseType</code>
-    <td> The HTTP response body parsed according to the <code>responseType</code> input parameter.
-  <tr>
-    <td> <code>response</code>
-    <td> <a href="#salesforce-response"><code>SalesforceResponse</code></a>
-    <td> An object containing the HTTP response headers, response status and binary response body.
-</table>
-
-### `SalesforceSoapError`
 <table>
   <tr>
     <th> Property name
@@ -501,25 +445,46 @@ Supported types of errors:
     <td> An object containing the HTTP response headers, response status and binary response body.
 </table>
 
-### `SalesforceNetworkError`
-<table>
-  <tr>
-    <th> Property name
-    <th> Type
-    <th> Value
-  <tr>
-    <td> <code>name</code>
-    <td> string
-    <td> <code>"SalesforceNetworkError"</code>
-  <tr>
-    <td> <code>message</code>
-    <td> string
-    <td> A descriptive error message. A text version of the <code>detail</code> property.
-  <tr>
-    <td> <code>detail</code>
-    <td> ?
-    <td> The error given by Node.js.
-</table>
+If the request fails because Node.js could not connect to Salesforce, the promise will reject with a <a href="https://nodejs.org/api/errors.html#errors_system_errors">Node.js System Error</a>.
+
+## Error handling
+
+The `rest` and `soap` functions return <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise">promises</a> you can use in error handling like any other promise.
+
+Example:
+
+```js
+try {
+  let result = await sfConn.rest("/services/data/v39.0/query/?q="
+    + encodeURIComponent("select Id from UnknownObject"));
+  console.log(result);
+} catch (ex) {
+  if (ex.name == "SalesforceRestError") {
+    console.log("Salesforce returned an error: " + ex.message);
+  } else if (ex.syscall == "getaddrinfo") {
+    console.log("Could not make request. Are you offline?");
+  } else {
+    throw ex; // Unknown type of error
+  }
+}
+```
+
+Same example with an older JavaScript syntax:
+```js
+sfConn.rest("/services/data/v39.0/query/?q="
+  + encodeURIComponent("select Id from UnknownObject"))
+.then(function(result) {
+  console.log(result);
+}, function(ex) {
+  if (ex.name == "SalesforceRestError") {
+    console.log("Salesforce returned an error: " + ex.message);
+  } else if (ex.syscall == "getaddrinfo") {
+    console.log("Could not make request. Are you offline?");
+  } else {
+    throw ex; // Unknown type of error
+  }
+});
+```
 
 ## History
 
