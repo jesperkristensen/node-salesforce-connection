@@ -1,6 +1,6 @@
 {
   "name": "node-salesforce-connection",
-  "version": "2.2.2",
+  "version": "2.3.0",
   "description": "A minimal library for connecting to Salesforce from Node.js",
   "license": "MIT",
   "main": "salesforce.js",
