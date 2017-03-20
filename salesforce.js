@@ -122,23 +122,23 @@ class SalesforceConnection {
     let wsdl = {
       Enterprise: {
         servicePortAddress: "/services/Soap/c/" + apiVersion,
-        targetNamespace: "urn:enterprise.soap.sforce.com"
+        targetNamespaces: ' xmlns="urn:enterprise.soap.sforce.com" xmlns:sf="urn:sobject.enterprise.soap.sforce.com"'
       },
       Partner: {
         servicePortAddress: "/services/Soap/u/" + apiVersion,
-        targetNamespace: "urn:partner.soap.sforce.com"
+        targetNamespaces: ' xmlns="urn:partner.soap.sforce.com" xmlns:sf="urn:sobject.partner.soap.sforce.com"'
       },
       Apex: {
         servicePortAddress: "/services/Soap/s/" + apiVersion,
-        targetNamespace: "http://soap.sforce.com/2006/08/apex"
+        targetNamespaces: ' xmlns="http://soap.sforce.com/2006/08/apex"'
       },
       Metadata: {
         servicePortAddress: "/services/Soap/m/" + apiVersion,
-        targetNamespace: "http://soap.sforce.com/2006/04/metadata"
+        targetNamespaces: ' xmlns="http://soap.sforce.com/2006/04/metadata"'
       },
       Tooling: {
         servicePortAddress: "/services/Soap/T/" + apiVersion,
-        targetNamespace: "urn:tooling.soap.sforce.com"
+        targetNamespaces: ' xmlns="urn:tooling.soap.sforce.com" xmlns:sf="urn:sobject.tooling.soap.sforce.com" xmlns:mns="urn:metadata.tooling.soap.sforce.com"'
       }
     };
     if (apiName) {
@@ -163,7 +163,7 @@ class SalesforceConnection {
     }
     let requestBody = XML.stringify({
       name: "soapenv:Envelope",
-      attributes: ' xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="' + wsdl.targetNamespace + '"',
+      attributes: ' xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"' + wsdl.targetNamespaces,
       value: {
         "soapenv:Header": Object.assign({}, sessionHeader, headers),
         "soapenv:Body": {[method]: args}

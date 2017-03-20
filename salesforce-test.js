@@ -1,6 +1,7 @@
 "use strict";
 let wrappedAssert = require("assert");
 let SalesforceConnection = require("./salesforce");
+let XML = require("./xml");
 
 let assert = {};
 for (let [name, value] of Object.entries(wrappedAssert)) {
@@ -16,7 +17,10 @@ for (let [name, value] of Object.entries(wrappedAssert)) {
 
 (async () => {
 
-  global.SALESFORCE_XML_VERIFY = true;
+  global.salesforceXmlParseVerifier = (xml, parsed) => {
+    let out = XML.stringify(parsed);
+    assert.strictEqual(xml, out);
+  };
 
   let sfConn = new SalesforceConnection();
 

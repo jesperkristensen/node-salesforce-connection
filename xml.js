@@ -1,33 +1,35 @@
 "use strict";
 /**
  * A very simple XML parser designed to parse the subset of XML that Salesforce produces.
- * It can read Salesforce SOAP responses and some (but not all) Metadata XML files.
- * It does not support many XML features such as namespaces, comments, attributes, doctypes and cdata.
+ * It can read Salesforce SOAP responses and Metadata XML files.
+ * It does not support many XML features such as namespaces, attributes, doctypes and cdata.
  * It might not always detect syntax errors in the XML.
  * It supports the XSI attributes.
- * It returns a plain JavaScript object representation of the XML document.
+ *
+ * Returns a plain JavaScript object representation of the XML document, as an object with these properties:
+ * - name : string : The root element's tag name.
+ * - attributes : string : An unparsed list of the root element's attributes.
+ * - value : any : A JavaScript value representing the contents of the root element.
  *
  * The content of an XML element is either of:
  * - null (if the element has the xsi:nil="true" attribute)
  *      We assume it has no child nodes.
- * - A XSD Complex Type (if the element has child elements or if it has the xsi:type="..." attribute)
- *      We represent a Complex Type as a JavaScript object.
- *      We add each child element as a property on the object.
- *      If there are multiple child elements with the same name, the property becomes an array of those childs.
+ * - an object (if the element has child elements or if it has the xsi:type="..." attribute)
+ *      Usually corresponds to a XSD Complex Type.
+ *      We add each child element as a property on the object, with the tag name as the property name, and the content of the child element as the property value.
+ *      If there are multiple child elements with the same name, we turn the property into an array of those childs.
  *      If the caller expects an array, but the array might not always have multiple entries, the caller can ensure the value is an array like this:
- *      let myArray = conn.asArray(mvValue);
- *      The xsi:type attribute is added as a property named "$type" on the JavaScript object, and all other attributes are ignored.
- * - A XSD Simple Type (otherwise)
- *      We represent a Simple Type as a JavaScript string.
+ *      let myArray = asArray(mvValue);
+ *      We add the xsi:type attribute as a property named "$type" on the object, and we ignore all other attributes.
+ *      If the element has no child elements, and if the element's text content is not only whitespace, we add the text content as a property named "$text".
+ *      The only situation the $text property should be relevant, is if an element has an xsi:type attribute with a value that represents a XSD Simple Type.
+ * - a string (otherwise)
+ *      Usually corresponds to a XSD Simple Type.
+ *      The string contains the text content of the element.
  *      The caller can then convert it to the relevant type, for example:
  *      let myNumber = Number(myValue);
  *      let myBoolean = myValue == "true";
  *
- * Our type selection criteria works because:
- * - Salesforce never puts an xsi:type attribute on simple types, only on sObjects.
- * - All complex types in Salesforce always have child elements, except sObjects.
- * - While sObjects are complex types but might not always have child elements, they always have either a xsi:type attribute (in the Enterprise WSDL) or a <type> child element (in the Partner WSDL).
- * Returns: Same as XMLParser#parseTag()
  */
 function parse(xml) {
   let parser = new XMLParser();
@@ -47,9 +49,8 @@ function parse(xml) {
     parser.pos = nextStart;
   }
   let parsed = parser.parseTag();
-  if (global.SALESFORCE_XML_VERIFY) {
-    let out = stringify(parsed);
-    parser.assertEq(xml, out);
+  if (global.salesforceXmlParseVerifier) {
+    global.salesforceXmlParseVerifier(xml, parsed);
   }
   return parsed;
 }
@@ -65,10 +66,7 @@ class XMLParser {
 
   // Precond: this.xml[this.pos] is the "<" character in an start tag
   // Postcond: this.xml[this.pos] is the character after the ">" character in the corresponding end tag
-  // Returns: An object with these properties:
-  // - name : string : The element's tag name.
-  // - attributes : string : An unparsed list of attributes.
-  // - value : any : A JavaScript value representing the contents of the element.
+  // Returns: Same as the parse function defined above.
   parseTag() {
     let name;
     let attributes;
@@ -113,7 +111,8 @@ class XMLParser {
         if (typeStart >= 0) {
           let typeValueStart = typeStart + " xsi:type=\"".length;
           let typeValueEnd = attributes.indexOf("\"", typeValueStart);
-          value = {$type: attributes.substring(typeValueStart, typeValueEnd)};
+          // Convert from string to object
+          value = {$type: decode(attributes.substring(typeValueStart, typeValueEnd))};
           let typeEnd = typeValueEnd + "\"".length;
           attributes = attributes.substring(0, typeStart) + attributes.substring(typeEnd);
         }
@@ -121,6 +120,7 @@ class XMLParser {
       } else {
         // We don't have any attributes
         name = startTag;
+        attributes = "";
       }
 
       if (selfClosing) {
@@ -129,35 +129,42 @@ class XMLParser {
 
     }
 
+    // Process text content, if there is any
+    {
+      let nextStart = this.xml.indexOf("<", this.pos);
+      this.assert(nextStart >= this.pos);
+      let text = this.xml.substring(this.pos, nextStart);
+      text = decode(text);
+      if (typeof value == "string") {
+        value = text;
+      } else if (text.trim() != "") {
+        value.$text = text;
+      }
+      this.pos = nextStart;
+    }
+
     // Consume and process child nodes + end tag
     for (;;) {
 
-      // Process text, if there is any
-      {
-        let nextStart = this.xml.indexOf("<", this.pos);
-        this.assert(nextStart >= this.pos);
-        if (typeof value == "string") {
-          this.assert(value == "");
-          let text = this.xml.substring(this.pos, nextStart);
-          value = text.replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
-        } else {
-          // Ignore text if the value is an object
-        }
-        this.pos = nextStart;
-      }
-
       // Process next tag
-      if (this.xml[this.pos + 1] == "/") {
+      if (this.xml.startsWith("</", this.pos)) {
         // The tag is an end tag
         this.parseEndTag(name);
         return {name, attributes, value};
+      } else if (this.xml.startsWith("<!--", this.pos)) {
+        // The tag is a comment
+        this.pos += "<!--".length;
+        let end = this.xml.indexOf("-->", this.pos);
+        this.assert(end >= this.pos);
+        this.pos = end + "-->".length;
       } else {
         // The tag is a start tag for a child element
         if (typeof value == "string") {
-          // Convert from XSD Simple Type to XSD Complex Type, if not already done
+          // Convert from string to object, if not already done
           value = {};
         }
         let sub = this.parseTag();
+        this.assertEq(sub.attributes, "");
         if (sub.name in value) {
           if (Array.isArray(value[sub.name])) {
             // Third or subsequent child with that name
@@ -170,6 +177,14 @@ class XMLParser {
           // First child with that name
           value[sub.name] = sub.value;
         }
+      }
+
+      // Process whitespace, if there is any
+      {
+        let nextStart = this.xml.indexOf("<", this.pos);
+        this.assert(nextStart >= this.pos);
+        this.assertEq(this.xml.substring(this.pos, nextStart).trim(), "");
+        this.pos = nextStart;
       }
 
     }
@@ -201,9 +216,13 @@ function asArray(x) {
   return [x];
 }
 
+function decode(text) {
+  return text.replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+}
+
 /**
  * Build an XML document to be consumed by Salesforce.
- * We can create Salesforce SOAP requests and some (but not all) Metadata XML files.
+ * We can create Salesforce SOAP requests and Metadata XML files.
  * @param name : string : The tag name of the root element.
  * @param attributes : string : An XML string with attributes for the root element, such as namespace declarations.
  * @param value : any : A JavaScript object representing the contents of the XML.
@@ -233,7 +252,7 @@ function* xmlTagBuilder(name, attributes, value) {
     yield "<" + name + attributes + " xsi:nil=\"true\"/>";
     return;
   } else if (typeof value === "object" && "$type" in value) {
-    attributes += " xsi:type=\"" + value.$type + "\"";
+    attributes += " xsi:type=\"" + encode(value.$type) + "\"";
   }
 
   yield "<" + name + attributes + ">";
@@ -242,15 +261,23 @@ function* xmlTagBuilder(name, attributes, value) {
     // nothing
   } else if (typeof value == "object") {
     for (let [key, val] of Object.entries(value)) {
-      if (key != "$type") {
+      if (key == "$type") {
+        // skip
+      } else if (key == "$text") {
+        yield encode(val);
+      } else {
         yield* xmlTagBuilder(key, "", val);
       }
     }
   } else {
-    yield String(value).replace(/&/g, "&amp;").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    yield encode(value);
   }
 
   yield "</" + name + ">";
 }
 
-module.exports = {parse, asArray, stringify};
+function encode(text) {
+  return String(text).replace(/&/g, "&amp;").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+module.exports = {parse, asArray, stringify, decode, encode};
