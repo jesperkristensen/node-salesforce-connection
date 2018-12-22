@@ -202,7 +202,7 @@ for (let [name, value] of Object.entries(wrappedAssert)) {
     } catch (ex) {
       assert.strictEqual(ex.name, "Error");
       assert.strictEqual(ex.message, "getaddrinfo ENOTFOUND invalid.salesforce.com invalid.salesforce.com:443");
-      assert.deepStrictEqual(ex, Object.assign(new Error(), {code: "ENOTFOUND", errno: "ENOTFOUND", syscall: "getaddrinfo", hostname: "invalid.salesforce.com", host: "invalid.salesforce.com", port: 443}));
+      assert.deepStrictEqual(ex, Object.assign(new Error("getaddrinfo ENOTFOUND invalid.salesforce.com invalid.salesforce.com:443"), {code: "ENOTFOUND", errno: "ENOTFOUND", syscall: "getaddrinfo", hostname: "invalid.salesforce.com", host: "invalid.salesforce.com", port: 443}));
     }
   }
 
