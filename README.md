@@ -153,7 +153,7 @@ console.log("Created Account with ID " + result.id
 
 The `rest` function accepts the following parameters:
 ```js
-sfConn.rest(url, {method, api, body, bodyType, headers, responseType});
+sfConn.rest(path, {method, api, body, bodyType, headers, responseType});
 ```
 
 <table>
@@ -188,7 +188,7 @@ sfConn.rest(url, {method, api, body, bodyType, headers, responseType});
     <td> <code>body</code>
     <td> Depends on <code>bodyType</code>
     <td> (none)
-    <td> Formatted according to the <code>bodyType</code> parameter and used as the HTTP request body.
+    <td> Used as the HTTP request body, formatted according to the <code>bodyType</code> parameter.
   <tr>
     <td> <code>bodyType</code>
     <td> string
@@ -343,7 +343,7 @@ sfConn.wsdl(apiVersion, apiName);
       The Salesforce SOAP API you want to use. Supported values are
       <a href="https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/"><code>"Enterprise"</code></a>,
       <a href="https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/"><code>"Partner"</code></a>,
-      <code>"Apex"</code>,
+      <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_web_services_methods.htm"><code>"Apex"</code></a>,
       <a href="https://developer.salesforce.com/docs/atlas.en-us.api_meta.meta/api_meta/"><code>"Metadata"</code></a> and
       <a href="https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/"><code>"Tooling"</code></a>.
 </table>
