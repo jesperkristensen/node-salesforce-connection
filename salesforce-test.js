@@ -164,6 +164,21 @@ for (let [name, value] of Object.entries(wrappedAssert)) {
   }
 
   {
+    console.log("TEST: rest, error with fields");
+    try {
+      let contact = {FirstName: "John", LastName: "Smith", Email: "not an email"};
+      await sfConn.rest("/services/data/v39.0/sobjects/Contact", {method: "POST", body: contact});
+      throw new Error("expected an error");
+    } catch (ex) {
+      assert.strictEqual(ex.name, "SalesforceRestError");
+      assert.strictEqual(ex.message, "INVALID_EMAIL_ADDRESS: Email: invalid email address: not an email [Email]");
+      assert.deepStrictEqual(ex.detail, [{message: "Email: invalid email address: not an email", errorCode: "INVALID_EMAIL_ADDRESS", fields: ["Email"]}]);
+      assert.strictEqual(ex.response.statusCode, 400);
+      assert.strictEqual(ex.response.statusMessage, "Bad Request");
+    }
+  }
+
+  {
     console.log("TEST: soap, error");
     let partnerWsdl = sfConn.wsdl("39.0", "Partner");
 

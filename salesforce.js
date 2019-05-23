@@ -57,12 +57,14 @@ class SalesforceConnection {
       throw new Error("Unknown responseType");
     }
 
-    if (api == "bulk") {
-      headers["X-SFDC-Session"] = this.sessionId;
-    } else if (api == "normal") {
-      headers.Authorization = "Bearer " + this.sessionId;
-    } else {
-      throw new Error("Unknown api");
+    if (this.sessionId) {
+      if (api == "bulk") {
+        headers["X-SFDC-Session"] = this.sessionId;
+      } else if (api == "normal") {
+        headers.Authorization = "Bearer " + this.sessionId;
+      } else {
+        throw new Error("Unknown api");
+      }
     }
 
     if (body !== undefined) {
@@ -101,7 +103,7 @@ class SalesforceConnection {
           err.detail = null;
         }
         try {
-          err.message = err.detail.map(err => err.errorCode + ": " + err.message).join("\n");
+          err.message = err.detail.map(err => `${err.errorCode}: ${err.message}${err.fields && err.fields.length > 0 ? ` [${err.fields.join(", ")}]` : ""}`).join("\n");
         } catch (ex) {
           if (response.body.length > 0) {
             err.message = response.body.toString();
