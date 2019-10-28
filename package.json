@@ -9,6 +9,6 @@
     "eslint": "eslint ."
   },
   "devDependencies": {
-    "eslint": "3.17.1"
+    "eslint": "4.18.2"
   }
 }
