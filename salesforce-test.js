@@ -141,8 +141,7 @@ for (let [name, value] of Object.entries(wrappedAssert)) {
 
   {
     console.log("TEST: rest, headers");
-    let contacts = await sfConn.rest("/services/data/v39.0/query/?q="
-      + encodeURIComponent("select Id from Contact where Email like '%nodetest.example.com'"),
+    let contacts = await sfConn.rest("/services/data/v39.0/query/?q=" + encodeURIComponent("select Id from Contact where Email like '%nodetest.example.com'"),
       {headers: {"Sforce-Query-Options": "batchSize=1000"}});
 
     assert.strictEqual(contacts.records.length, 2);
