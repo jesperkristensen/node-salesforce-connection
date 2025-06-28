@@ -1,4 +1,4 @@
-name: Lint and package
+name: Lint and test
 on:
   push:
   workflow_dispatch:
@@ -13,3 +13,8 @@ jobs:
     - run: npm ci
     - run: npm run eslint
     - run: node salesforce-test.js
+      env:
+        TEST_CONSUMER_KEY: ${{ secrets.TEST_CONSUMER_KEY }}
+        TEST_CONSUMER_SECRET: ${{ secrets.TEST_CONSUMER_SECRET }}
+        TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+        TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
