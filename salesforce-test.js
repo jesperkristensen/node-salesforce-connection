@@ -154,11 +154,11 @@ for (let [name, value] of Object.entries(wrappedAssert)) {
       throw new Error("expected an error");
     } catch (ex) {
       assert.strictEqual(ex.name, "SalesforceRestError");
-      assert.strictEqual(ex.message, "MALFORMED_QUERY: unexpected token: invalid");
-      assert.deepStrictEqual(ex.detail, [{message: "unexpected token: invalid", errorCode: "MALFORMED_QUERY"}]);
+      assert.strictEqual(ex.message, "MALFORMED_QUERY: unexpected token: 'invalid'");
+      assert.deepStrictEqual(ex.detail, [{message: "unexpected token: 'invalid'", errorCode: "MALFORMED_QUERY"}]);
       assert.strictEqual(ex.response.statusCode, 400);
       assert.strictEqual(ex.response.statusMessage, "Bad Request");
-      assert.strictEqual(ex.response.body.toString(), '[{"message":"unexpected token: invalid","errorCode":"MALFORMED_QUERY"}]');
+      assert.strictEqual(ex.response.body.toString(), '[{"message":"unexpected token: 'invalid'","errorCode":"MALFORMED_QUERY"}]');
     }
   }
 
